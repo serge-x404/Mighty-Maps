@@ -7,21 +7,30 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
 import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.GroundOverlay
+import com.google.maps.android.compose.GroundOverlayPosition
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapType
+import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polygon
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,25 +81,94 @@ class MainActivity : ComponentActivity() {
 
             val routePoints = listOf(office,college, school)
 
+            val markers = remember { mutableStateListOf<LatLng>() }
+
+            val longClickedMarkers = remember { mutableStateListOf<LatLng>() }
+
+            val manhattanBounds = LatLngBounds(
+                LatLng(40.7000,-74.0200),
+                LatLng(40.7800, -73.9600)
+            )
+
+            val scope = rememberCoroutineScope()
+
             GoogleMap(
+
+                uiSettings = MapUiSettings(
+                    compassEnabled = true,
+                    zoomGesturesEnabled = false,
+                    myLocationButtonEnabled = true,
+                    rotationGesturesEnabled = false,
+                    tiltGesturesEnabled = true
+                ),
+
                 modifier = Modifier
                     .fillMaxSize(),
 
                 cameraPositionState = rememberCameraPositionState {
                     position = testingTiltBearing
                 },
-                properties = MapProperties(mapType = mapType)
-            ) {
-                Marker(
-                    state = MarkerState(home),
-                    title = "India",
-                    snippet = "Marker @ (23.05,72.50)",
-                    alpha = 1f,
-                    onClick = { marker ->
-                        Log.v("TAGY","You clicked India")
-                        true    // false -> to show marker snippet
+                properties = MapProperties(
+                    mapType = mapType,
+//                    latLngBoundsForCameraTarget = manhattanBounds,
+//                    minZoomPreference = 12f,
+//                    maxZoomPreference = 12f
+                ),
+
+                onMapClick = {
+                    Log.i("TAGY","You clicked $it")
+                    markers.add(it)
+                },
+
+                onMapLongClick = {latlng ->
+                    Log.i("TAGY","You long clicked $latlng")
+
+                    longClickedMarkers.add(latlng)
+
+                    scope.launch {
+                        cameraPositonState.animate(
+                            CameraUpdateFactory.newCameraPosition(
+                                CameraPosition(
+                                    latlng,
+                                    14f,
+                                    0f,
+                                    0f
+                                )
+                            ), 1000
+                        )
                     }
-                )
+                }
+            ) {
+
+                markers.forEach { location ->
+                    Marker(
+                        state = MarkerState(location),
+                        title = "Marker at $location"
+                    )
+                }
+
+                longClickedMarkers.forEach {location ->
+                    Marker(
+                        state = MarkerState(location),
+                        title = "Long-pressed marker at $location",
+                        icon = BitmapDescriptorFactory.defaultMarker(
+                            BitmapDescriptorFactory.HUE_MAGENTA
+                        ),
+                        onInfoWindowLongClick = {marker ->
+                            longClickedMarkers.remove(marker.position)
+                        }
+                    )
+                }
+//                Marker(
+//                    state = MarkerState(home),
+//                    title = "India",
+//                    snippet = "Marker @ (23.05,72.50)",
+//                    alpha = 1f,
+//                    onClick = { marker ->
+//                        Log.v("TAGY","You clicked Marker")
+//                        true    // false -> to show marker snippet
+//                    }
+//                )
                 Polyline(
                     points = routePoints,
                     clickable = true,
@@ -118,6 +196,18 @@ class MainActivity : ComponentActivity() {
                     onClick = {
                         Log.v("TAGY","Polygon is clicked")
                     }
+                )
+
+
+                val positionOverlay = GroundOverlayPosition.create(manhattanBounds)
+
+                GroundOverlay(
+                    position = positionOverlay,
+                    image = BitmapDescriptorFactory.fromResource(
+                        R.drawable.nyc
+                    ),
+                    transparency = 0.3f,
+                    bearing = 30f
                 )
 
             }
