@@ -5,15 +5,44 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Satellite
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
@@ -41,10 +70,11 @@ class MainActivity : ComponentActivity() {
             val home = LatLng(20.95,72.92)
 
             val cameraPositonState = rememberCameraPositionState {
-                position = CameraPosition.fromLatLngZoom(
+                position = CameraPosition
+                    .fromLatLngZoom(
                     home,
                     4f
-                )
+                    )
             }
 
             val testingTiltBearing = remember {
@@ -64,7 +94,7 @@ class MainActivity : ComponentActivity() {
 
             var mapType by remember {
                 mutableStateOf(
-                    MapType.NORMAL
+                    MapType.SATELLITE
                 )
             }
 
@@ -92,124 +122,247 @@ class MainActivity : ComponentActivity() {
 
             val scope = rememberCoroutineScope()
 
-            GoogleMap(
+            var selectedMarker by remember { mutableStateOf<LatLng?>(null) }
 
-                uiSettings = MapUiSettings(
-                    compassEnabled = true,
-                    zoomGesturesEnabled = false,
-                    myLocationButtonEnabled = true,
-                    rotationGesturesEnabled = false,
-                    tiltGesturesEnabled = true
-                ),
-
-                modifier = Modifier
-                    .fillMaxSize(),
-
-                cameraPositionState = rememberCameraPositionState {
-                    position = testingTiltBearing
-                },
-                properties = MapProperties(
-                    mapType = mapType,
-//                    latLngBoundsForCameraTarget = manhattanBounds,
-//                    minZoomPreference = 12f,
-//                    maxZoomPreference = 12f
-                ),
-
-                onMapClick = {
-                    Log.i("TAGY","You clicked $it")
-                    markers.add(it)
-                },
-
-                onMapLongClick = {latlng ->
-                    Log.i("TAGY","You long clicked $latlng")
-
-                    longClickedMarkers.add(latlng)
-
-                    scope.launch {
-                        cameraPositonState.animate(
-                            CameraUpdateFactory.newCameraPosition(
-                                CameraPosition(
-                                    latlng,
-                                    14f,
-                                    0f,
-                                    0f
-                                )
-                            ), 1000
-                        )
-                    }
-                }
+            Box(modifier = Modifier
+                .fillMaxSize()
             ) {
 
-                markers.forEach { location ->
-                    Marker(
-                        state = MarkerState(location),
-                        title = "Marker at $location"
-                    )
-                }
+                GoogleMap(
 
-                longClickedMarkers.forEach {location ->
-                    Marker(
-                        state = MarkerState(location),
-                        title = "Long-pressed marker at $location",
-                        icon = BitmapDescriptorFactory.defaultMarker(
-                            BitmapDescriptorFactory.HUE_MAGENTA
-                        ),
-                        onInfoWindowLongClick = {marker ->
-                            longClickedMarkers.remove(marker.position)
+                    uiSettings = MapUiSettings(
+                        compassEnabled = true,
+                        zoomGesturesEnabled = false,
+                        myLocationButtonEnabled = true,
+                        rotationGesturesEnabled = false,
+                        tiltGesturesEnabled = true
+                    ),
+
+                    modifier = Modifier
+                        .fillMaxSize(),
+
+                    cameraPositionState = cameraPositonState,
+                    properties = MapProperties(
+                        mapType = mapType,
+                        //                    latLngBoundsForCameraTarget = manhattanBounds,
+                        //                    minZoomPreference = 12f,
+                        //                    maxZoomPreference = 12f
+                    ),
+
+                    onMapClick = {
+                        Log.i("TAGY", "You clicked $it")
+                        markers.add(it)
+
+                        selectedMarker = it
+
+
+                        scope.launch {
+                            cameraPositonState.animate(
+                                CameraUpdateFactory.newLatLngZoom(it, 15f),
+                                800
+                            )
+                        }
+                    },
+
+                    onMapLongClick = { latlng ->
+                        Log.i("TAGY", "You long clicked $latlng")
+
+                        longClickedMarkers.add(latlng)
+
+                        selectedMarker = latlng
+
+                        scope.launch {
+                            cameraPositonState.animate(
+                                CameraUpdateFactory.newCameraPosition(
+                                    CameraPosition(
+                                        latlng,
+                                        14f,
+                                        0f,
+                                        0f
+                                    )
+                                ), 1000
+                            )
+                        }
+                    }
+                ) {
+
+                    markers.forEach { location ->
+                        Marker(
+                            state = MarkerState(location),
+                            title = "Marker at $location",
+                            onInfoWindowLongClick = { marker ->
+                                markers.remove(marker.position)
+                            },
+                            onClick = {marker ->
+                                selectedMarker = marker.position
+                                true
+                            }
+                        )
+                    }
+
+                    longClickedMarkers.forEach { location ->
+                        Marker(
+                            state = MarkerState(location),
+                            title = "Long-pressed marker at $location",
+                            icon = BitmapDescriptorFactory.defaultMarker(
+                                BitmapDescriptorFactory.HUE_MAGENTA
+                            ),
+                            onInfoWindowLongClick = { marker ->
+                                longClickedMarkers.remove(marker.position)
+                            },
+                            onClick = {marker ->
+                                selectedMarker = marker.position
+                                true
+                            }
+                        )
+                    }
+                    //                Marker(
+                    //                    state = MarkerState(home),
+                    //                    title = "India",
+                    //                    snippet = "Marker @ (23.05,72.50)",
+                    //                    alpha = 1f,
+                    //                    onClick = { marker ->
+                    //                        Log.v("TAGY","You clicked Marker")
+                    //                        true    // false -> to show marker snippet
+                    //                    }
+                    //                )
+                    Polyline(
+                        points = routePoints,
+                        clickable = true,
+                        width = 10f,
+                        color = Color.Red,
+                        onClick = {
+                            Log.v("TAGY", "You clicked polyline")
+                        },
+                        geodesic = true
+                    )
+
+                    val trianglePoints = listOf(
+                        LatLng(34.0522, -118.2437), // LA
+                        LatLng(37.7749, -122.4194), // SF
+                        LatLng(32.7157, -117.1611), // SD
+                    )
+
+
+                    Polygon(
+                        points = trianglePoints,
+                        fillColor = Color.Yellow,
+                        strokeColor = Color.Red,
+                        strokeWidth = 7f,
+                        clickable = true,
+                        onClick = {
+                            Log.v("TAGY", "Polygon is clicked")
                         }
                     )
+
+
+                    val positionOverlay = GroundOverlayPosition.create(manhattanBounds)
+
+                    GroundOverlay(
+                        position = positionOverlay,
+                        image = BitmapDescriptorFactory.fromResource(
+                            R.drawable.nyc
+                        ),
+                        transparency = 0.3f,
+                        bearing = 30f
+                    )
+
                 }
-//                Marker(
-//                    state = MarkerState(home),
-//                    title = "India",
-//                    snippet = "Marker @ (23.05,72.50)",
-//                    alpha = 1f,
-//                    onClick = { marker ->
-//                        Log.v("TAGY","You clicked Marker")
-//                        true    // false -> to show marker snippet
-//                    }
-//                )
-                Polyline(
-                    points = routePoints,
-                    clickable = true,
-                    width = 10f,
-                    color = Color.Red,
-                    onClick = {
-                        Log.v("TAGY","You clicked polyline")
-                    },
-                    geodesic = true
-                )
 
-                val trianglePoints = listOf(
-                    LatLng(34.0522,-118.2437), // LA
-                    LatLng(37.7749,-122.4194), // SF
-                    LatLng(32.7157,-117.1611), // SD
-                )
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(16.dp),
+                    color = Color.White,
+                    shape = RoundedCornerShape(8.dp),
+                    tonalElevation = 4.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
 
+                        IconToggleButton(
+                            checked = mapType == MapType.NORMAL,
+                            onCheckedChange = {checked ->
+                                mapType = if (checked) MapType.SATELLITE else MapType.NORMAL
+                            }
+                        ) {
+                            Icon(
+                                if (mapType == MapType.SATELLITE) Icons.Default.Map
+                                else Icons.Default.Warning,
+                                contentDescription = null
+                            )
+                        }
 
-                Polygon(
-                    points = trianglePoints,
-                    fillColor = Color.Yellow,
-                    strokeColor = Color.Red,
-                    strokeWidth = 7f,
-                    clickable = true,
-                    onClick = {
-                        Log.v("TAGY","Polygon is clicked")
+                        IconButton(
+                            onClick = {}    //getCurrentLocation
+                        ) {
+                            Icon(Icons.Default.LocationOn, null)
+                        }
+
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+
+                                    val newPosition = CameraPosition(
+                                        LatLng(0.0,0.0),
+                                        10f,
+                                        0f,
+                                        0f
+                                    )
+
+                                    cameraPositonState.animate(
+                                        CameraUpdateFactory.newCameraPosition(newPosition),
+                                        5000
+                                    )
+                                }
+                            }
+                        ) {
+                            Icon( Icons.Default.Restore, null )
+                        }
                     }
-                )
+                }
+            }
 
+            selectedMarker?.let { position ->
+                Card(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .widthIn(max = 250.dp),
+                    elevation = CardDefaults.cardElevation(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            "Selected marker details",
+                            style = MaterialTheme.typography.headlineMedium
+                        )
+                        Text("Latitude: ${position.latitude}")
+                        Text("Latitude: ${position.longitude}")
 
-                val positionOverlay = GroundOverlayPosition.create(manhattanBounds)
+                        Spacer(Modifier.height(8.dp))
 
-                GroundOverlay(
-                    position = positionOverlay,
-                    image = BitmapDescriptorFactory.fromResource(
-                        R.drawable.nyc
-                    ),
-                    transparency = 0.3f,
-                    bearing = 30f
-                )
+                        Button(
+                            onClick = {
+                                selectedMarker = null
 
+                                if (markers.contains(position)) {
+                                    markers.remove(position)
+                                }
+                                else {
+                                    longClickedMarkers.remove(position)
+                                }
+                            },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Close")
+                        }
+                    }
+                }
             }
         }
     }
