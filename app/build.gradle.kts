@@ -67,8 +67,12 @@ dependencies {
 
     // Google Maps
     implementation("com.google.maps.android:maps-compose:8.2.2")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 
     // Icons dependency
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.material:material-icons-extended")
+
+    // implementing compose activity
+    implementation("androidx.activity:activity-compose:1.13.0")
 }
