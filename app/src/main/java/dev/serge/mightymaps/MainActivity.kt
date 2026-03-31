@@ -1,6 +1,8 @@
 package dev.serge.mightymaps
 
+import android.Manifest
 import android.content.Context
+import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
 import android.util.Log
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -37,6 +40,7 @@ import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -72,7 +76,12 @@ import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polygon
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
+import com.google.maps.android.compose.widgets.ScaleBar
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.IOException
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -108,9 +117,7 @@ class MainActivity : ComponentActivity() {
             // 4 HYBRID
 
             var mapType by remember {
-                mutableStateOf(
-                    MapType.SATELLITE
-                )
+                mutableStateOf(MapType.NORMAL)
             }
 
 //            val customMarker = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE)
@@ -157,8 +164,13 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(Unit) {
                 locationPermissionLauncher
-                    .launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                    .launch(Manifest.permission.ACCESS_FINE_LOCATION)
             }
+
+            var searchQuery by remember { mutableStateOf("") }
+            var location by remember { mutableStateOf<LatLng?>(null) }
+            var address by remember { mutableStateOf("Search or tap on map") }
+            var coroutineScope = rememberCoroutineScope()
 
 
             Box(modifier = Modifier
@@ -198,6 +210,9 @@ class MainActivity : ComponentActivity() {
                                 CameraUpdateFactory.newLatLngZoom(it, 15f),
                                 800
                             )
+
+                            location = it
+                            address = reverseGeocode(context, it) ?: "Unknown address"
                         }
                     },
 
@@ -222,6 +237,17 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) {
+
+                    location?.let {locationLatLng ->
+                        Marker(
+                            state = MarkerState(locationLatLng),
+                            title = address,
+                            snippet = "Lat:${locationLatLng.latitude}" +
+                                    "Long:${locationLatLng.longitude}"
+                        )
+                    }
+
+
 
                     myLocation?.let { currentLocation->
                         val currentLatLng = LatLng(
@@ -326,6 +352,53 @@ class MainActivity : ComponentActivity() {
 
                 }
 
+                ScaleBar(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp),
+                    cameraPositionState = cameraPositonState
+                )
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(bottom = 24.dp)
+                ) {
+                    Text(
+                        address,
+                        modifier = Modifier.padding(16.dp)
+                    )
+
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Enter Address") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                    )
+
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                geocodeAddress(context,searchQuery) {
+                                    locationLatLng ->
+                                    locationLatLng?.let {
+                                        cameraPositonState.position = CameraPosition.fromLatLngZoom(it, 15f)
+
+                                        coroutineScope.launch {
+                                            address = reverseGeocode(context, it) ?: "Unknown address"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Search")
+                    }
+                }
+
+
                 Surface(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -343,7 +416,7 @@ class MainActivity : ComponentActivity() {
                         IconToggleButton(
                             checked = mapType == MapType.NORMAL,
                             onCheckedChange = {checked ->
-                                mapType = if (checked) MapType.SATELLITE else MapType.NORMAL
+                                mapType = if (checked) MapType.NORMAL else MapType.SATELLITE
                             }
                         ) {
                             Icon(
@@ -465,4 +538,48 @@ class MainActivity : ComponentActivity() {
             e.printStackTrace()
         }
     }
+
+    fun geocodeAddress(
+        context: Context,
+        address: String,
+        onResult: (LatLng?) -> Unit
+    ) {
+
+        val geocoder = Geocoder(context)
+
+        try {
+            val addresses = geocoder.getFromLocationName(address,1)
+
+            if (addresses?.isNotEmpty() == true) {
+                val location = addresses[0]
+                val latLng = LatLng(location.latitude, location.longitude)
+                onResult(latLng)
+            }
+            else {
+                onResult(null)
+            }
+        }
+        catch (e: IOException) {
+            e.printStackTrace()
+            onResult(null)
+        }
+    }
+
+    suspend fun reverseGeocode(context: Context, latLng: LatLng): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val geocoder = Geocoder(context, Locale.getDefault())
+
+                @Suppress("DEPRECATION")
+                val addresses = geocoder.getFromLocation(latLng.latitude,latLng.longitude,1)
+
+                addresses?.firstOrNull()?.getAddressLine(0)
+            }
+            catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
+    }
+
 }
