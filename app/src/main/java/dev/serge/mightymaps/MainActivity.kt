@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -79,13 +80,17 @@ import com.google.maps.android.compose.GroundOverlayPosition
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapType
 import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.MapsComposeExperimentalApi
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polygon
 import com.google.maps.android.compose.Polyline
+import com.google.maps.android.compose.clustering.Clustering
+import com.google.maps.android.compose.clustering.rememberClusterManager
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberUpdatedMarkerState
 import com.google.maps.android.compose.widgets.ScaleBar
+import dev.serge.mightymaps.rememberClusterManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -95,6 +100,7 @@ import java.util.Locale
 class MainActivity : ComponentActivity() {
 
     private lateinit var placesClient: PlacesClient
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -193,6 +199,29 @@ class MainActivity : ComponentActivity() {
             var address by remember { mutableStateOf("Search or tap on map") }
             var coroutineScope = rememberCoroutineScope()
 
+            // cluster Items
+
+            val clusteringItems = listOf<MyClusterItem>(
+                MyClusterItem(LatLng(1.1,1.2),"first","1st",1.1f),
+                MyClusterItem(LatLng(1.2,1.3),"second","2nd",1.2f),
+                MyClusterItem(LatLng(1.3,1.4),"third","3rd",1.3f),
+                MyClusterItem(LatLng(1.4,1.5),"first","4th",1.4f),
+                MyClusterItem(LatLng(1.5,1.6),"first","5th",1.5f),
+                MyClusterItem(LatLng(1.6,1.7),"first","6th",1.6f),
+                MyClusterItem(LatLng(1.7,1.8),"first","7th",1.7f),
+                MyClusterItem(LatLng(1.8,1.9),"first","8th",1.8f),
+                MyClusterItem(LatLng(1.9,1.20),"first","9th",1.9f),
+                MyClusterItem(LatLng(1.10,1.11),"first","10th",1.11f),
+                MyClusterItem(LatLng(1.11,1.14),"first","11th",1.12f),
+                MyClusterItem(LatLng(1.12,1.1454),"first","12th",1.13f),
+                MyClusterItem(LatLng(1.13,1.164),"first","13th",1.143f),
+                MyClusterItem(LatLng(1.143,1.174),"first","14th",1.153f),
+            )
+
+            // cluster Manager
+
+            val clusterMarker = rememberClusterManager()
+
 
             Box(modifier = Modifier
                 .fillMaxSize()
@@ -258,6 +287,26 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) {
+
+                    Clustering(
+                        items = clusteringItems,
+                        onClusterClick = {
+                            Log.v("TAGY","You clicked cluster $it")
+                            true
+                        },
+                        onClusterItemClick = {
+                            Log.v("TAGY","You clicked cluster item $it")
+                            true
+                        },
+                        clusterContent = {cluster ->
+                            CircleCluster(
+                                Color.Blue,
+                                cluster.size.toString(),
+                                Modifier.size(50.dp)
+                            )
+                        }
+                    )
+
 
                     selectedPlace?.let { place ->
                         Marker(
