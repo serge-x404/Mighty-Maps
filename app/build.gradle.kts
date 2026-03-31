@@ -25,7 +25,9 @@ android {
             load(rootProject.file("local.properties").inputStream())
         }
 
-        manifestPlaceholders["mapsApiKey"] = localProps["MAPS_API_KEY"] as String ?: ""
+        manifestPlaceholders["mapsApiKey"] = localProps["MAPS_API_KEY"] as String? ?: ""
+
+        buildConfigField("String","MAPS_API_KEY","\"${localProps["MAPS_API_KEY"]}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -45,6 +47,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -76,4 +79,7 @@ dependencies {
 
     // implementing compose activity
     implementation("androidx.activity:activity-compose:1.13.0")
+
+    // Places API
+    implementation("com.google.android.libraries.places:places:5.1.1")
 }

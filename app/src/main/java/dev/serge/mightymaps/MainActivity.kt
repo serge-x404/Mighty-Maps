@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -64,6 +66,12 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.libraries.places.api.Places
+import com.google.android.libraries.places.api.model.AutocompletePrediction
+import com.google.android.libraries.places.api.model.Place
+import com.google.android.libraries.places.api.net.FetchPlaceRequest
+import com.google.android.libraries.places.api.net.FindAutocompletePredictionsRequest
+import com.google.android.libraries.places.api.net.PlacesClient
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.GroundOverlay
@@ -76,6 +84,7 @@ import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polygon
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
+import com.google.maps.android.compose.rememberUpdatedMarkerState
 import com.google.maps.android.compose.widgets.ScaleBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -84,12 +93,24 @@ import java.io.IOException
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
+
+    private lateinit var placesClient: PlacesClient
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        placesClient = Places.createClient(this)
+
         setContent {
 
             val context = LocalContext.current
+
+            // Places API
+            var placesQuery by remember { mutableStateOf("") }
+            var predictions by remember { mutableStateOf<List<AutocompletePrediction>>(emptyList()) }
+            var selectedPlace by remember { mutableStateOf<Place?>(null) }
+
 
             val home = LatLng(20.95,72.92)
 
@@ -237,6 +258,16 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) {
+
+                    selectedPlace?.let { place ->
+                        Marker(
+                            state = MarkerState(place.location),
+                            title = place.displayName,
+                            snippet = place.shortFormattedAddress
+                        )
+                    }
+
+
 
                     location?.let {locationLatLng ->
                         Marker(
@@ -494,6 +525,65 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+            ) {
+                TextField(
+                    value = placesQuery,
+                    onValueChange = { newQuery ->
+                        placesQuery = newQuery
+
+                        if (newQuery.length > 2) {
+                            val request = FindAutocompletePredictionsRequest.builder()
+                                .setQuery(newQuery)
+                                .build()
+
+                            placesClient.findAutocompletePredictions(request)
+                                .addOnSuccessListener { response ->
+                                    predictions = response.autocompletePredictions
+                                }
+                                .addOnFailureListener { exception ->
+                                    Log.e("TAGY","Error getting predictions: ${exception.message}")
+                                }
+                        }
+                    },
+                    label = {Text("Search Places")},
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                LazyColumn {
+                    items(predictions) {prediction ->
+                        PredictionItem(
+                            prediction = prediction,
+                            onItemClick = {
+
+                                val placeFields = listOf(
+                                    Place.Field.ID,
+                                    Place.Field.DISPLAY_NAME,
+                                    Place.Field.LOCATION,
+                                    Place.Field.SHORT_FORMATTED_ADDRESS
+                                )
+
+                                val request = FetchPlaceRequest.newInstance(
+                                    prediction.placeId,
+                                    placeFields
+                                )
+
+                                placesClient.fetchPlace(request)
+                                    .addOnSuccessListener { response ->
+                                        selectedPlace = response.place
+
+                                        response.place.location?.let {latLng ->
+                                            cameraPositonState.position = CameraPosition.fromLatLngZoom(latLng,15f)
+                                        }
+                                    }
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
     private fun fetchCurrentLocation(
@@ -548,6 +638,7 @@ class MainActivity : ComponentActivity() {
         val geocoder = Geocoder(context)
 
         try {
+            @Suppress("DEPRECATION")
             val addresses = geocoder.getFromLocationName(address,1)
 
             if (addresses?.isNotEmpty() == true) {
